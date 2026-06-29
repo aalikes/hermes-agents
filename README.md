@@ -8,8 +8,8 @@ MetroPrints AI agent fleet — autonomous Slack bots powered by DeepSeek LLM, So
 |-------|------|--------|
 | **Casey** | Case management — intake, FBI PrintDeck, compliance, escalations | ✅ Live |
 | **Metro** | Ops intelligence — snapshots, briefings, pipeline health, content | ✅ Live |
-| **Penny** | Finance oversight — revenue, expenses, anomaly detection | 📋 Planned |
-| **Cal** | Scheduling — appointments, operator availability | 📋 Planned |
+| **Penny** | Finance oversight — revenue, expenses, anomaly detection | ⚠️ Deployed, Slack manifest not yet activated |
+| **Cal** | Scheduling — appointments, operator availability | ⚠️ Deployed, Slack manifest not yet activated |
 
 ## Quick Deploy
 

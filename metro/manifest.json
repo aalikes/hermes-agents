@@ -66,14 +66,23 @@
         "channels:read",
         "chat:write",
         "commands",
+        "files:read",
         "groups:history",
         "groups:read",
         "im:history",
         "im:read",
         "im:write",
         "reactions:read",
-        "reactions:write",
+        "usergroups:read",
         "users:read"
+      ],
+      "bot_optional": [
+        "assistant:write",
+        "channels:join",
+        "channels:manage",
+        "files:write",
+        "groups:write",
+        "reactions:write"
       ]
     }
   },
@@ -84,8 +93,7 @@
         "app_mention",
         "message.channels",
         "message.groups",
-        "message.im",
-        "message.mpim"
+        "message.im"
       ]
     },
     "interactivity": {

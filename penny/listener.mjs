@@ -23,7 +23,12 @@ const NOTION_DBS = {
   ori: "731bd0e1-0c8f-4db5-8fc5-4086e9cba134",
   projects: "27189d07-dc61-8140-abb6-d35934cf48a7",
   marketplace: "9bd3910c-6dc2-4bb7-81be-8af80b2a3e74",
+  finance: "e3f5a9cf-2e0e-4c7d-90b1-8672c61b20e7",
+  transactions: "36389d07-dc61-8160-8a02-e9f966e9a39d",
+  budgets: "36389d07-dc61-816a-af99-eb57bd0b7d9f",
 };
+
+let loadedKnowledge = "";
 
 function loadKnowledge() {
   let combined = "";
@@ -35,10 +40,15 @@ function loadKnowledge() {
       console.error(`[penny] Could not load knowledge file ${rel}: ${e.message}`);
     }
   }
-  return combined;
+  loadedKnowledge = combined;
+  return loadedKnowledge;
 }
 
-const KNOWLEDGE = loadKnowledge();
+loadKnowledge();
+
+function buildSystemPrompt() {
+  return BASE_SYSTEM_PROMPT.replace("__KNOWLEDGE__", loadedKnowledge || "(no knowledge loaded — run /penny-learn to refresh)");
+}
 
 const BASE_SYSTEM_PROMPT = `You are Penny, MetroPrints' finance oversight agent.
 
@@ -69,7 +79,7 @@ You audit the finance data that Make automations produce. You do NOT do raw tran
 ## Style
 Direct, numbers-first, honest about data gaps. If the Finance Tracker / Notion data isn't wired into a specific ask yet, say so plainly instead of fabricating figures. Keep replies tight.
 
-${KNOWLEDGE}`;
+__KNOWLEDGE__`;
 
 async function slack(method, body, token = XOXB) {
   const res = await fetch(`${SLACK_API}/${method}`, {
@@ -235,7 +245,7 @@ async function handleCommand(command, channel, user, text, responseUrl) {
       ].join("\n");
       break;
     default:
-      reply = await think([{ role: "system", content: BASE_SYSTEM_PROMPT }, { role: "user", content: text || "Hi" }]);
+      reply = await think([{ role: "system", content: buildSystemPrompt() }, { role: "user", content: text || "Hi" }]);
   }
 
   if (responseUrl) {
@@ -253,7 +263,7 @@ async function handle(channel, user, text, threadTs) {
   try {
     const thread = threadTs || undefined;
     const history = thread ? await fetchThreadHistory(channel, thread) : [];
-    let messages = [{ role: "system", content: BASE_SYSTEM_PROMPT }, ...history, { role: "user", content: text }];
+    let messages = [{ role: "system", content: buildSystemPrompt() }, ...history, { role: "user", content: text }];
     messages = await foldContext(messages);
     const reply = await think(messages);
     await slack("chat.postMessage", { channel, text: reply, thread_ts: thread });
@@ -291,7 +301,7 @@ async function connect() {
         return;
       }
 
-      if (msg.type === "slash_command" && msg.payload) {
+      if (msg.type === "slash_commands" && msg.payload) {
         ws.send(JSON.stringify({ envelope_id: msg.envelope_id, type: "ack" }));
         const p = msg.payload;
         await handleCommand(p.command, p.channel_id, p.user_id, p.text, p.response_url);

@@ -25,6 +25,8 @@ const NOTION_DBS = {
   marketplace: "9bd3910c-6dc2-4bb7-81be-8af80b2a3e74",
 };
 
+let loadedKnowledge = "";
+
 function loadKnowledge() {
   let combined = "";
   for (const rel of KNOWLEDGE_FILES) {
@@ -35,10 +37,15 @@ function loadKnowledge() {
       console.error(`[cal] Could not load knowledge file ${rel}: ${e.message}`);
     }
   }
-  return combined;
+  loadedKnowledge = combined;
+  return loadedKnowledge;
 }
 
-const KNOWLEDGE = loadKnowledge();
+loadKnowledge();
+
+function buildSystemPrompt() {
+  return BASE_SYSTEM_PROMPT.replace("__KNOWLEDGE__", loadedKnowledge || "(no knowledge loaded — run /cal-learn to refresh)");
+}
 
 const BASE_SYSTEM_PROMPT = `You are Cal, MetroPrints' scheduling and calendar-coordination agent.
 
@@ -75,7 +82,7 @@ Because of this, you do NOT have a live calendar data source connected right now
 ## Style
 Be direct and honest about what's not wired up yet. Don't fabricate calendar data.
 
-${KNOWLEDGE}`;
+__KNOWLEDGE__`;
 
 async function slack(method, body, token = XOXB) {
   const res = await fetch(`${SLACK_API}/${method}`, {
@@ -235,7 +242,7 @@ async function handleCommand(command, channel, user, text, responseUrl) {
       ].join("\n");
       break;
     default:
-      reply = await think([{ role: "system", content: BASE_SYSTEM_PROMPT }, { role: "user", content: text || "Hi" }]);
+      reply = await think([{ role: "system", content: buildSystemPrompt() }, { role: "user", content: text || "Hi" }]);
   }
 
   if (responseUrl) {
@@ -253,7 +260,7 @@ async function handle(channel, user, text, threadTs) {
   try {
     const thread = threadTs || undefined;
     const history = thread ? await fetchThreadHistory(channel, thread) : [];
-    let messages = [{ role: "system", content: BASE_SYSTEM_PROMPT }, ...history, { role: "user", content: text }];
+    let messages = [{ role: "system", content: buildSystemPrompt() }, ...history, { role: "user", content: text }];
     messages = await foldContext(messages);
     const reply = await think(messages);
     await slack("chat.postMessage", { channel, text: reply, thread_ts: thread });
@@ -291,7 +298,7 @@ async function connect() {
         return;
       }
 
-      if (msg.type === "slash_command" && msg.payload) {
+      if (msg.type === "slash_commands" && msg.payload) {
         ws.send(JSON.stringify({ envelope_id: msg.envelope_id, type: "ack" }));
         const p = msg.payload;
         await handleCommand(p.command, p.channel_id, p.user_id, p.text, p.response_url);

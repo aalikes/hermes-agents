@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { resolveSpawns } from "../shared/subagent.mjs";
 
 const XAPP = process.env.SLACK_XAPP_TOKEN || "";
 const XOXB = process.env.SLACK_XOXB_TOKEN || "";
@@ -95,6 +96,14 @@ async function connect() {
         return;
       }
 
+      // Slash commands — top-level envelope, type is "slash_commands" (plural), never nested in events_api
+      if (msg.type === "slash_commands" && msg.payload) {
+        ws.send(JSON.stringify({ envelope_id: msg.envelope_id, type: "ack" }));
+        const p = msg.payload;
+        await handleCommand(p.command, p.channel_id, p.user_id, p.text, p.response_url);
+        return;
+      }
+
       if (msg.type === "events_api" && msg.payload?.event) {
         const evt = msg.payload.event;
 
@@ -107,13 +116,7 @@ async function connect() {
 
         const text = evt.text || "";
 
-        // Slash commands
-        if (evt.type === "slash_command") {
-          await handleCommand(evt.command, evt.channel, evt.user, text, evt.response_url);
-          return;
-        }
-
-        // Respond to any message in a thread Casey is already participating in
+        // Respond to any message in a thread Metro is already participating in
         // No @mention needed — she's in the conversation
         if (evt.type === "message" && isActiveThread(evt) && text.trim()) {
           console.log(`[metro] THREAD: ${evt.channel} thread_ts=${evt.thread_ts || evt.ts} user=${evt.user} text="${text.substring(0, 60)}"`);
@@ -193,7 +196,7 @@ function buildSystemPrompt() {
   return `${BASE_SYSTEM_PROMPT}
 
 ## Obsidian Knowledge (live from vault)
-${loadedKnowledge || "(no knowledge loaded — run /casey-learn to refresh)"}`;
+${loadedKnowledge || "(no knowledge loaded — run /metro-learn to refresh)"}`;
 }
 
 // ── Notion Integration ───────────────────────────────
@@ -289,6 +292,7 @@ const BASE_SYSTEM_PROMPT = `You are Metro, the MetroPrints executive intelligenc
 ## What You DO NOT Do
 - Do NOT manage individual cases — that's Casey's domain.
 - Do NOT create Slack bots. Spawn sub-agents when needed.
+- SPAWN SYNTAX: [SPAWN:short-role-name]detailed-task-description[/SPAWN]. Spawned sub-agents run in parallel; results replace the marker. Use multiple spawn blocks for swarm orchestration (e.g., spawn a revenue auditor, pipeline checker, and compliance scanner for one snapshot). Sub-agents are ephemeral — they run one task and terminate.
 - Do NOT monitor raw payments — Penny handles financial transactions.
 - Do NOT schedule appointments — Cal handles scheduling.
 
@@ -352,7 +356,7 @@ async function fetchContext(channel, thread, count = 20) {
         let text = m.text;
         text = text.replace(/<@U0BD79D3ZHD>/g, "@Casey");
         text = text.replace(/<@U0BDF2P4SHL>/g, "@Metro");
-        text = text.replace(/<@U0BDN98CLAW>/g, "@casey-x");
+        text = text.replace(/<@U0BDN98CLAW>/g, "@Casey");
         text = text.replace(/<@U0BBZJ7KASK>/g, "@Shah");
         text = text.replace(/<@U0BCBLPAJG5>/g, "@Shah");
         text = text.replace(/<!channel>/g, "@channel");
@@ -426,11 +430,15 @@ async function handle(channel, user, text, thread) {
     let reply;
     const llmReply = await think(folded);
     if (llmReply) {
-      reply = llmReply;
-      console.log(`[metro] LLM reply for ${userName}`);
+      const resolved = await resolveSpawns(llmReply, {
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        parentAgent: "Metro",
+      });
+      reply = resolved.text;
+      console.log(`[metro] LLM reply for ${userName}${resolved.spawned ? ` (${resolved.spawned} sub-agents spawned)` : ""}`);
     } else {
       // Fallback if LLM unavailable
-      reply = `Hey ${userName.split(" ")[0]}! I'm Casey, the MetroPrints workspace admin. I can help with workspace audits, alerts, channels, and service checks. What do you need?`;
+      reply = `Hey ${userName.split(" ")[0]}! I'm Metro, the MetroPrints executive intelligence and knowledge agent. I produce ops snapshots, track pipeline health, flag anomalies, draft content, and keep institutional knowledge current. What do you need?`;
       console.log(`[metro] Fallback reply (no LLM)`);
     }
 
@@ -438,6 +446,8 @@ async function handle(channel, user, text, thread) {
       channel,
       text: reply,
       thread_ts: thread,
+      unfurl_links: false,
+      unfurl_media: false,
     });
     trackThread(thread, channel);
     console.log(`[metro] Replied in ${channel} | tracked thread=${thread}`);
@@ -448,6 +458,8 @@ async function handle(channel, user, text, thread) {
         channel,
         text: "Sorry, something went wrong. Try again?",
         thread_ts: thread,
+        unfurl_links: false,
+        unfurl_media: false,
       });
       trackThread(thread, channel);
     } catch {}
@@ -612,6 +624,8 @@ async function postAlert(text, userName) {
   await slack("chat.postMessage", {
     channel: alertChannel,
     text: `🚨 *${level} Alert* from ${userName}:\n> ${message || "(no details)"}`,
+    unfurl_links: false,
+    unfurl_media: false,
   });
   return `Alert posted to ${channelName}: ${message || "(no details)"}`;
 }
@@ -647,6 +661,6 @@ function nextBriefingDate() {
   return nextMonday.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
-console.log("[metro] Starting Casey Socket Mode listener...");
+console.log("[metro] Starting Metro Socket Mode listener...");
 loadKnowledge();
 connect();

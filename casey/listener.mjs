@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { resolveSpawns } from "../shared/subagent.mjs";
 
 const XAPP = process.env.SLACK_XAPP_TOKEN || "";
 const XOXB = process.env.SLACK_XOXB_TOKEN || "";
@@ -100,6 +101,14 @@ async function connect() {
         return;
       }
 
+      // Slash commands — top-level envelope, type is "slash_commands" (plural), never nested in events_api
+      if (msg.type === "slash_commands" && msg.payload) {
+        ws.send(JSON.stringify({ envelope_id: msg.envelope_id, type: "ack" }));
+        const p = msg.payload;
+        await handleCommand(p.command, p.channel_id, p.user_id, p.text, p.response_url);
+        return;
+      }
+
       if (msg.type === "events_api" && msg.payload?.event) {
         const evt = msg.payload.event;
 
@@ -111,12 +120,6 @@ async function connect() {
         if (evt.subtype === "message_changed" || evt.subtype === "message_deleted") return;
 
         const text = evt.text || "";
-
-        // Slash commands
-        if (evt.type === "slash_command") {
-          await handleCommand(evt.command, evt.channel, evt.user, text, evt.response_url);
-          return;
-        }
 
         // Respond to any message in a thread Casey is already participating in
         // No @mention needed — she's in the conversation
@@ -254,24 +257,79 @@ async function checkWebsite() {
   }
 }
 
-// ── Email Check (Gmail IMAP via HTTP) ────────────────
+// ── Email Check (Gmail IMAP via imapflow) ─────────────
 
 const EMAIL_USER = process.env.METROPRINTS_EMAIL || "";
 const EMAIL_PASS = process.env.METROPRINTS_EMAIL_PASS || "";
+const EMAIL_ACTIVE = !!(EMAIL_USER && EMAIL_PASS);
 
-// Note: Gmail requires an App Password (not account password) for IMAP.
-// Generate at: https://myaccount.google.com/apppasswords
-// Casey uses this to scan for FBI Email #2 confirmations.
-// If App Password not set up, email monitoring will log an error and skip.
+// Gmail IMAP uses OAuth2 or App Password (not account password).
+// Generate App Password at: https://myaccount.google.com/apppasswords
+// Casey uses this to scan for FBI Email #2 confirmations and order confirmations.
+
+let imapClient = null;
+
+async function getImapClient() {
+  if (!EMAIL_ACTIVE) return null;
+  if (imapClient) return imapClient;
+
+  try {
+    const { ImapFlow } = await import("imapflow");
+    imapClient = new ImapFlow({
+      host: "imap.gmail.com",
+      port: 993,
+      secure: true,
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+      logger: false,
+    });
+    await imapClient.connect();
+    console.log("[casey] IMAP connected");
+    return imapClient;
+  } catch (e) {
+    console.error("[casey] IMAP connection failed:", e.message);
+    imapClient = null;
+    return null;
+  }
+}
 
 async function checkRecentEmails(subjectFilter = "FBI", maxResults = 5) {
-  if (!EMAIL_USER || !EMAIL_PASS) {
+  if (!EMAIL_ACTIVE) {
     console.log("[casey] Email monitoring skipped — no credentials");
     return { ok: false, error: "no_credentials", results: [] };
   }
-  // Gmail IMAP via fetch is complex — simplified search via Gmail API planned
-  // For now, returns a notice that email requires Gmail API or App Password setup
-  return { ok: false, error: "gmail_api_required", results: [], note: "Requires Gmail API OAuth or Google App Password for IMAP. Generate at myaccount.google.com/apppasswords" };
+
+  const client = await getImapClient();
+  if (!client) {
+    return { ok: false, error: "imap_connection_failed", results: [], note: "Set METROPRINTS_EMAIL and METROPRINTS_EMAIL_PASS env vars with a Gmail App Password" };
+  }
+
+  try {
+    await client.mailboxOpen("INBOX");
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24 hours
+    const messages = [];
+
+    for await (const msg of client.fetch(
+      { seen: false },
+      { source: true, envelope: true, bodyStructure: true }
+    )) {
+      if (messages.length >= maxResults) break;
+      const subject = msg.envelope?.subject || "";
+      if (subject.toLowerCase().includes(subjectFilter.toLowerCase())) {
+        messages.push({
+          uid: msg.uid,
+          subject,
+          from: msg.envelope?.from?.[0]?.address || "unknown",
+          date: msg.envelope?.date || new Date(),
+          snippet: msg.source?.toString().substring(0, 200) || "",
+        });
+      }
+    }
+
+    return { ok: true, results: messages };
+  } catch (e) {
+    console.error("[casey] IMAP fetch error:", e.message);
+    return { ok: false, error: e.message, results: [] };
+  }
 }
 
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || "";
@@ -289,7 +347,8 @@ const BASE_SYSTEM_PROMPT = `You are Casey, the MetroPrints case management agent
 
 ## What You Do (NOT what you create)
 - YOU RUN CRON JOBS: scheduled tasks — morning standups, case sweeps, compliance checks. These auto-fire on timers.
-- YOU SPAWN SUB-AGENTS: when a task is too complex, spawn a sub-agent via the MCP or command interface. Do NOT create Slack bots; delegate to agents.
+- YOU SPAWN SUB-AGENTS: when a task requires parallel decomposition, use the spawn syntax. Do NOT create Slack bots; delegate to agents.
+- SPAWN SYNTAX: [SPAWN:short-role-name]detailed-task-description[/SPAWN]. Spawned sub-agents run in parallel and their results replace the marker. Use multiple spawn blocks for swarm orchestration. Sub-agents are ephemeral — they run one task and terminate.
 - YOU MONITOR COMPLIANCE: FDLE certification status, operator background checks, insurance policy expirations, equipment calibration.
 - YOU MANAGE CASES: track every client from intake through fingerprinting, background check, apostille, to closure.
 - YOU POST ALERTS: P0/P1 to #metroprints-critical, P2/P3 to #metroprints-alerts.
@@ -481,8 +540,13 @@ async function handle(channel, user, text, thread) {
     let reply;
     const llmReply = await think(folded);
     if (llmReply) {
-      reply = llmReply;
-      console.log(`[casey] LLM reply for ${userName}`);
+      // Resolve sub-agent spawn markers: [SPAWN:role]prompt[/SPAWN]
+      const resolved = await resolveSpawns(llmReply, {
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        parentAgent: "Casey",
+      });
+      reply = resolved.text;
+      console.log(`[casey] LLM reply for ${userName}${resolved.spawned ? ` (${resolved.spawned} sub-agents spawned)` : ""}`);
     } else {
       // Fallback if LLM unavailable
       reply = `Hey ${userName.split(" ")[0]}! I'm Casey, the MetroPrints workspace admin. I can help with workspace audits, alerts, channels, and service checks. What do you need?`;
@@ -493,6 +557,8 @@ async function handle(channel, user, text, thread) {
       channel,
       text: reply,
       thread_ts: thread,
+      unfurl_links: false,
+      unfurl_media: false,
     });
     trackThread(thread, channel);
     console.log(`[casey] Replied in ${channel} | tracked thread=${thread}`);
@@ -503,6 +569,8 @@ async function handle(channel, user, text, thread) {
         channel,
         text: "Sorry, something went wrong. Try again?",
         thread_ts: thread,
+        unfurl_links: false,
+        unfurl_media: false,
       });
       trackThread(thread, channel);
     } catch {}
@@ -688,6 +756,8 @@ async function postAlert(text, userName) {
   await slack("chat.postMessage", {
     channel: alertChannel,
     text: `🚨 *${level} Alert* from ${userName}:\n> ${message || "(no details)"}`,
+    unfurl_links: false,
+    unfurl_media: false,
   });
   return `Alert posted to ${channelName}: ${message || "(no details)"}`;
 }

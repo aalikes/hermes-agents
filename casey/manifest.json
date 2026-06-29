@@ -84,6 +84,17 @@
         "command": "/casey-fbi-dispatch",
         "description": "Generate today's FBI action items",
         "should_escape": false
+      },
+      {
+        "command": "/casey-website",
+        "description": "Check metroprints.co website status",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-cases",
+        "description": "Show active cases or lookup by client name",
+        "usage_hint": "[client name]",
+        "should_escape": false
       }
     ]
   },
@@ -91,25 +102,26 @@
     "scopes": {
       "bot": [
         "app_mentions:read",
-        "assistant:write",
         "channels:history",
         "channels:join",
-        "channels:manage",
         "channels:read",
         "chat:write",
         "commands",
-        "files:read",
-        "files:write",
         "groups:history",
         "groups:read",
-        "groups:write",
         "im:history",
         "im:read",
         "im:write",
         "reactions:read",
-        "reactions:write",
         "usergroups:read",
         "users:read"
+      ],
+      "bot_optional": [
+        "channels:manage",
+        "files:read",
+        "files:write",
+        "groups:write",
+        "reactions:write"
       ]
     }
   },
@@ -120,8 +132,7 @@
         "app_mention",
         "message.channels",
         "message.groups",
-        "message.im",
-        "message.mpim"
+        "message.im"
       ]
     },
     "interactivity": {

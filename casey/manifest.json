@@ -1,0 +1,134 @@
+{
+  "display_information": {
+    "name": "Casey",
+    "description": "MetroPrints Slack workspace administrator — audits channels, user groups, members, webhooks, and alert infrastructure",
+    "background_color": "#1a1a2e"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Casey",
+      "always_online": true
+    },
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "slash_commands": [
+      {
+        "command": "/casey",
+        "description": "Ask Casey anything — audits, status, help, questions",
+        "usage_hint": "[question]",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-audit",
+        "description": "Full workspace audit: channels, members, groups, settings",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-channels",
+        "description": "List all channels with member counts, purpose, and privacy",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-members",
+        "description": "List workspace members: names, roles, bot vs human",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-status",
+        "description": "Workspace health check: connections, channels, recent activity",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-alert",
+        "description": "Post an alert to a monitoring channel",
+        "usage_hint": "[level] [message]",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-recall",
+        "description": "Recall recent conversation or thread summary",
+        "usage_hint": "[topic]",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-help",
+        "description": "Show available commands and capabilities",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-learn",
+        "description": "Refresh knowledge from Obsidian vault",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-fbi-intake",
+        "description": "Start a new FBI PrintDeck case",
+        "usage_hint": "[client name]",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-fbi-status",
+        "description": "Show FBI case timeline and checklist",
+        "usage_hint": "[Order#]",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-fbi-stale",
+        "description": "List FBI cases stalled >48 hrs at any conversion step",
+        "should_escape": false
+      },
+      {
+        "command": "/casey-fbi-dispatch",
+        "description": "Generate today's FBI action items",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "assistant:write",
+        "channels:history",
+        "channels:join",
+        "channels:manage",
+        "channels:read",
+        "chat:write",
+        "commands",
+        "files:read",
+        "files:write",
+        "groups:history",
+        "groups:read",
+        "groups:write",
+        "im:history",
+        "im:read",
+        "im:write",
+        "reactions:read",
+        "reactions:write",
+        "usergroups:read",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_home_opened",
+        "app_mention",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "message.mpim"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

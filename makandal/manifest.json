@@ -1,0 +1,99 @@
+{
+  "display_information": {
+    "name": "Makandal",
+    "description": "Makandal — THC Operations Intelligence agent. Named after François Makandal, the maroon leader who organized intelligence networks across Saint-Domingue.",
+    "background_color": "#1a1a2e",
+    "long_description": "Makandal is the Operations Intelligence agent for The Haitian Community (THC), a platform co-founded by Samuel Jean and Shah Saint-Cyr. He monitors Slack channels, tracks OKRs, executes playbooks (R1-R5), and surfaces operational insights. Ask him about membership, programs, listings, sponsorships, or run a workspace sweep."
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Makandal",
+      "always_online": true
+    },
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "slash_commands": [
+      {
+        "command": "/makandal",
+        "description": "Ask Makandal anything about THC operations",
+        "usage_hint": "[question]",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-sweep",
+        "description": "Full workspace intelligence sweep — channels, activity, unreads",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-okr",
+        "description": "2026 OKR dashboard with targets and status",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-snapshot",
+        "description": "Operational health snapshot",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-channels",
+        "description": "List all Slack channels",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-members",
+        "description": "List all workspace members",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-help",
+        "description": "Show available commands",
+        "should_escape": false
+      },
+      {
+        "command": "/makandal-learn",
+        "description": "Refresh knowledge from Obsidian vault",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "app_mentions:read",
+        "channels:history",
+        "channels:read",
+        "chat:write",
+        "commands",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "im:write",
+        "reactions:read",
+        "reactions:write",
+        "users:read",
+        "usergroups:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_home_opened",
+        "app_mention",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "message.mpim"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

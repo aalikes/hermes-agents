@@ -1,0 +1,29 @@
+[Unit]
+Description=Makandal — THC Operations Intelligence Agent
+Documentation=https://haitiancommunitycares.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=makandal
+WorkingDirectory=/opt/hermes-agents/makandal
+Environment=NODE_ENV=production
+Environment=DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+Environment=SLACK_XAPP_TOKEN=${SLACK_XAPP_TOKEN}
+Environment=SLACK_XOXB_TOKEN=${SLACK_XOXB_TOKEN}
+Environment=SLACK_BOT_USER_ID=U0BE36F0ZE1
+Environment=NOTION_API_KEY=${NOTION_API_KEY}
+ExecStart=/usr/bin/node /opt/hermes-agents/makandal/listener.mjs
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=makandal
+
+# Resource limits
+LimitNOFILE=65536
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
